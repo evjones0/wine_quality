@@ -1,0 +1,154 @@
+---
+title: "analytics_workflow"
+author: "Evan Jones"
+date: "9/23/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+if(require(pacman)==F) install.packages("pacman")
+
+pacman::p_load(tidyverse, DataExplorer, caret)
+
+cat("\014")
+rm(list = ls())
+options(scipen = 10)
+```
+
+# Overview
+
+# Data Description
+This dataset contains physicochemical and qualitative measures of red and white vinho verde wine from Portugal. The overall goal of this dataset is to predict wine quality in a 0 to 10 rating scale. Each quality observation is based on an expert review.
+
+There are 13 total variables in the dataset.
+
+
+Variable Name | Variable Type | Unit | Description
+- | - | - | -
+Fixed Acidity | Continuous | $g(tartaric\;acid)/dm^3$ | The concentration of tartaric acid in the wine bottle
+Volatile Acidity | Continuous | $g(acetic\;acid)/dm^3$ | The concentration of acetic acid in the wine bottle
+Citric Acid | Continuous | $g/dm^3$ | The concentration of citric acid in the wine bottle
+Residual Sugar | Continuous | $g/dm^3$ | The concentration of sugar in the wine bottle
+Chlorides | Continuous | $g/dm^3$ | The concentration of chlorides in the wine bottle
+Free Sulfur Dioxide | Discrete | $mg/dm^3$ | The concentration of free sulfur dioxide in the wine bottle
+Total Sulfur Dioxide | Discrete | $mg/dm^3$ | The overall concentration of sulfur dioxide in the wine bottle
+Density | Continuous | $g/cm^3$ | The liquid density in the wine bottle
+pH | Continuous | N/A | A measure of acidity and basicity in an aqueous solution. Values can range between 0 and 14. Values less than 7 indicate an acidic solution, whereas values above 7 indicate a basic solution. Exactly 7 indicates a neutral solution
+Sulphates | Continuous | $g(potassium\;sulphate)/dm^3$ | The concentration of sulphates in the wine bottle
+Alcohol | Continuous | % volume | % alcohol content of the wine bottle.
+Quality | Discrete | N/A | 0-10 score assigned to the bottle
+Color | Factor (2 levels) | N/A | Whether the wine is white or red
+
+# Preprocessing
+```{r, include = F}
+# Read in datasets
+
+df_white <- read.csv2("./datasets/winequality-white.csv")
+df_red <- read.csv2("./datasets/winequality-red.csv")
+
+# Union datasets
+df_white$color <- "White"
+df_red$color <- "Red"
+
+df <- union_all(df_white, df_red)
+
+rm(df_red, df_white)
+
+# Rename columns to snake case
+df <- df %>% 
+  rename(fixed_acidity = fixed.acidity,
+         volatile_acidity = volatile.acidity,
+         citric_acid = citric.acid,
+         residual_sugar = residual.sugar,
+         free_sulfur_dioxide = free.sulfur.dioxide,
+         total_sulfur_dioxide = total.sulfur.dioxide
+         )
+
+```
+
+```{r}
+df.numeric = c("fixed_acidity","volatile_acidity", "citric_acid", "residual_sugar", "chlorides", "density", "pH", "sulphates", "alcohol", "quality")
+df.int = c("free_sulfur_dioxide", "total_sulfur_dioxide")
+df.factor = c("color")
+
+df[df.numeric] <- lapply(df[df.numeric], as.numeric)
+df[df.int] <- lapply(df[df.int], as.integer)
+df[df.factor] <- lapply(df[df.factor], as.factor)
+
+rm(df.numeric, df.int, df.factor)
+
+df$color <- df$color %>% relevel(ref = "White")
+
+str(df)
+
+```
+
+
+# Analysis
+
+Free sulfur dioxide and total sulfur dioxide are highly correlated so only one of the two variables was used in the final model
+
+```{r}
+# plot_intro(df)
+plot_bar(df)
+plot_histogram(df)
+plot_correlation(df, type = "c")
+```
+```{r}
+hist(df$residual_sugar, breaks = 100)
+# DataExplorer::create_report(df)
+```
+
+
+## Model Building
+```{r}
+set.seed(3)
+trainIndex = sample(1:nrow(df), size = round(0.6*nrow(df)), replace=FALSE)
+df.train <- df[trainIndex, ]
+df.valid <- df[-trainIndex, ]
+rm(trainIndex)
+```
+
+```{r}
+df.reg.full <- lm(log(quality)~., data = df.train)
+
+summary(df.reg.full)
+
+# lm(quality ~
+#   fixed_acidity +
+#   volatile_acidity +
+#   citric_acid +
+#   residual_sugar +
+#   chlorides +
+#   free_sulfur_dioxide +
+#   total_sulfur_dioxide +
+#   density +
+#   pH +
+#   sulphates +
+#   alcohol +
+#   color,
+#   data = df.train) -> df.reg.full2
+# 
+# 
+# summary(df.reg.full2)
+
+```
+
+```{r}
+# plot(df.reg.full)
+
+plot(df.reg.full$fitted.values, df.reg.full$residuals, 
+     ylab = "Residuals", 
+     xlab = "Casual", 
+     main = "Residuals vs. Fitted Values")
+abline(0,0, col = "red")
+
+qqnorm(df.reg.full$residuals)
+qqline(df.reg.full$residuals, col = "red")
+```
+
+
+
+# Conclusion
