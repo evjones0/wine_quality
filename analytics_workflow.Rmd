@@ -26,7 +26,6 @@ This dataset contains physicochemical and qualitative measures of red and white 
 
 There are 13 total variables in the dataset.
 
-
 Variable Name | Variable Type | Unit | Description
 - | - | - | -
 Fixed Acidity | Continuous | $g(tartaric\;acid)/dm^3$ | The concentration of tartaric acid in the wine bottle
@@ -47,7 +46,7 @@ Color | Factor (2 levels) | N/A | Whether the wine is white or red
 ```{r, include = F}
 # Read in datasets from UCI website
 
-df_white <- read.csv2("https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-red.csv")
+df_white <- read.csv2("https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-white.csv")
 df_red <- read.csv2("https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-red.csv")
 
 # Local backup fo dataset as of 8/23/20
@@ -160,50 +159,29 @@ From this we notice that free and total sulfur dioxide are highly correlated. Th
 data.summary(df)
 ```
 
-```{r, include=F}
+```{r}
 # Investigate unusual columns
 plot(df$quality, df$density)
 plot(df$quality, df$residual_sugar)
-plot(df$quality, df$sulphates)
-plot(df$quality, df$total_sulfur_dixoide)
-plot(df$quality, df$volatile_acidity)
-plot(df$quality, df$pH)
 
 ```
 
-```{r}
-# Investigate outliers
+```{r, include=F}
+# Remove outliers from residual sugar and density
 
-# outliers include
-# density, residual sugar, sulphates, total sulfur dioxide, volatile acidity
+df_outlier <- which(df$residual_sugar > 60) 
 
-# outlier at 1.04ish density and over 60 residual
+df_outlier %>% 
+  union(which(df$density > 1.03)) -> df_outlier
 
-
-# df_outlier = df[df$residual_sugar > 60,]
-# df_outlier
-
-df_outlier = which(df$residual_sugar > 60)
-df_outlier2 = which(df$density > 1.03)
+df = df[-df_outlier,]
 
 ```
 
 ```{r}
 # Remove outliers and replot
-
-df = df[-df_outlier,]
-
 plot(df$quality, df$density)
 ```
-
-```{r, include=F}
-plot(df$quality, df$density)
-plot(df$quality, df$residual_sugar)
-plot(df$quality, df$sulphates)
-plot(df$quality, df$total_sulfur_dixoide)
-plot(df$quality, df$volatile_acidity)
-```
-
 ## Model Building
 ```{r, include=F}
 set.seed(3)
@@ -214,6 +192,7 @@ rm(trainIndex)
 ```
 
 ```{r, include=F}
+# Linear model
 lm(sqrt(quality) ~
   volatile_acidity +
   free_sulfur_dioxide +
@@ -227,6 +206,5 @@ summary(df.reg)
 ```{r, include=F}
 plot(df.reg)
 ```
-
 
 # Conclusion
