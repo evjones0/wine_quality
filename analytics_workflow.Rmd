@@ -1,8 +1,11 @@
 ---
-title: "analytics_workflow"
+title: "Vinho Verde Wine Analysis"
 author: "Evan Jones"
 date: "9/23/2020"
-output: html_document
+output: 
+  html_document:
+    toc: true
+    code_folding: hide
 ---
 
 ```{r setup, include=FALSE}
@@ -43,7 +46,7 @@ Quality | Discrete | N/A | 0-10 score assigned to the bottle
 Color | Factor (2 levels) | N/A | Whether the wine is white or red
 
 # Preprocessing
-```{r, include = F}
+```{r, data_read, include = F}
 # Read in datasets from UCI website
 
 df_white <- read.csv2("https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-white.csv")
@@ -63,7 +66,7 @@ df <- union_all(df_white, df_red)
 rm(df_red, df_white)
 ```
 
-```{r, include=F}
+```{r, variable_rename, include=F}
 # Rename columns to snake case
 df <- df %>% 
   rename(fixed_acidity = fixed.acidity,
@@ -76,7 +79,7 @@ df <- df %>%
 
 ```
 
-```{r, include=F}
+```{r, type_cast, include=F}
 # Identify column data types
 df.numeric = c("fixed_acidity","volatile_acidity", "citric_acid", "residual_sugar", "chlorides", "density", "pH", "sulphates", "alcohol", "quality")
 df.int = c("free_sulfur_dioxide", "total_sulfur_dioxide")
@@ -101,7 +104,7 @@ str(df)
 Free sulfur dioxide and total sulfur dioxide are highly correlated so only one of the two variables was used in the final model
 
 
-```{r, include=F}
+```{r, data_explorer, include=F}
 # Data Explorer Generation
 # DataExplorer::create_report(df)
 
@@ -145,7 +148,7 @@ Free sulfur dioxide and total sulfur dioxide are highly correlated so only one o
 
 ```
 
-```{r, echo=F}
+```{r, exploratory_plots, echo=F}
 # Exploratory Data Analysis Plots
 plot_intro(df)
 plot_bar(df)
@@ -155,18 +158,18 @@ plot_correlation(df, type = "c")
 
 From this we notice that free and total sulfur dioxide are highly correlated. Thus only one of the two was used in the analysis.
 
-```{r, include = F}
+```{r, data_summary, include = F}
 data.summary(df)
 ```
 
-```{r}
+```{r, outlier_plots}
 # Investigate unusual columns
 plot(df$quality, df$density)
 plot(df$quality, df$residual_sugar)
 
 ```
 
-```{r, include=F}
+```{r, outlier_removal, include=F}
 # Remove outliers from residual sugar and density
 
 df_outlier <- which(df$residual_sugar > 60) 
@@ -178,12 +181,8 @@ df = df[-df_outlier,]
 
 ```
 
-```{r}
-# Remove outliers and replot
-plot(df$quality, df$density)
-```
-## Model Building
-```{r, include=F}
+## Final Explanatory Model
+```{r, training_split, include=F}
 set.seed(3)
 trainIndex = sample(1:nrow(df), size = round(0.6*nrow(df)), replace=FALSE)
 df.train <- df[trainIndex, ]
@@ -191,7 +190,7 @@ df.valid <- df[-trainIndex, ]
 rm(trainIndex)
 ```
 
-```{r, include=F}
+```{r, model, include=F}
 # Linear model
 lm(sqrt(quality) ~
   volatile_acidity +
@@ -203,8 +202,64 @@ lm(sqrt(quality) ~
 summary(df.reg)
 ```
 
-```{r, include=F}
-plot(df.reg)
+The variables used in the final model are:
+- Volatile aciditity
+- Free sulfur dioxide
+- Alcohol
+- Color
+
+```{r, rmse, include=F}
+# Calculate predicted values for validation set and transform
+df.valid$quality_pred <- predict(df.reg, newdata=df.valid)
+df.valid <- df.valid %>% 
+  mutate(quality_pred_adj = I(quality_pred^2))
+
+# Compare RMSE calculation to caret package
+rmse <- caret::RMSE(df.valid$quality_pred_adj, df.valid$quality)
 ```
+
+The model has an overall RMSE of `r round(rmse, digits=2)`
+
+### Model Assumptions
+
+**Mean of Error Term**
+
+```{r, include = F}
+mean(df.reg$residuals)
+```
+
+The mean of the probability distribution of the error is $\approx 0$, Therefore this assumption is passed.
+
+**Variance of Error Term**
+
+```{r, echo = FALSE}
+plot(df.reg$fitted.values, df.reg$residuals, 
+     ylab = "Residuals", 
+     xlab = "Fitted Values", 
+     main = "Residuals vs. Fitted Values")
+abline(0,0, col = "red")
+```
+
+The variance of the probability distribution of the error looks [insert], so this assumptions is passed.
+
+**Normal Distribution of Error Term**
+
+```{r, echo = FALSE}
+qqnorm(df.reg$residuals)
+qqline(df.reg$residuals, col = "red")
+```
+
+The QQ Plot deviation in the lower left and upper right corners indicates long tails on both the lower and upper ends of the wine quality.
+
+Between this plot and the above residual plot, we can assume that the error is normally distributed.
+
+**Independent Observations**
+
+Additionally, we can assume that each of these observations are independent of each other as each one represents a separate bottle of wine.
+
+### Predictive Power
+
+Since there are only 4 observations with a quality of 9, and no observations with a quality of 10, high predicted qualities should be approached with caution.
+
 
 # Conclusion
