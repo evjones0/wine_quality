@@ -45,10 +45,15 @@ Color | Factor (2 levels) | N/A | Whether the wine is white or red
 
 # Preprocessing
 ```{r, include = F}
-# Read in datasets
+# Read in datasets from UCI website
 
-df_white <- read.csv2("./datasets/winequality-white.csv")
-df_red <- read.csv2("./datasets/winequality-red.csv")
+df_white <- read.csv2("https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-red.csv")
+df_red <- read.csv2("https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-red.csv")
+
+# Local backup fo dataset as of 8/23/20
+
+# df_white <- read.csv2("./datasets/winequality-white.csv")
+# df_red <- read.csv2("./datasets/winequality-red.csv")
 
 # Union datasets
 df_white$color <- "White"
@@ -57,7 +62,9 @@ df_red$color <- "Red"
 df <- union_all(df_white, df_red)
 
 rm(df_red, df_white)
+```
 
+```{r, include=F}
 # Rename columns to snake case
 df <- df %>% 
   rename(fixed_acidity = fixed.acidity,
