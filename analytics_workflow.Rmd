@@ -15,6 +15,8 @@ pacman::p_load(tidyverse, DataExplorer, caret)
 cat("\014")
 rm(list = ls())
 options(scipen = 10)
+
+source("external_functions/data_summary.R")
 ```
 
 # Overview
@@ -68,7 +70,8 @@ df <- df %>%
 
 ```
 
-```{r}
+```{r, include=F}
+# Identify column data types
 df.numeric = c("fixed_acidity","volatile_acidity", "citric_acid", "residual_sugar", "chlorides", "density", "pH", "sulphates", "alcohol", "quality")
 df.int = c("free_sulfur_dioxide", "total_sulfur_dioxide")
 df.factor = c("color")
@@ -79,31 +82,123 @@ df[df.factor] <- lapply(df[df.factor], as.factor)
 
 rm(df.numeric, df.int, df.factor)
 
+# relevel color base as white (red wines are generally more premium)
+
 df$color <- df$color %>% relevel(ref = "White")
 
 str(df)
 
 ```
 
-
 # Analysis
 
 Free sulfur dioxide and total sulfur dioxide are highly correlated so only one of the two variables was used in the final model
 
-```{r}
-# plot_intro(df)
+
+```{r, include=F}
+# Data Explorer Generation
+# DataExplorer::create_report(df)
+
+# report_config <- configure_report(
+#   add_introduce = TRUE,
+#   add_plot_intro = TRUE,
+#   # add_plot_str = TRUE,
+#   add_plot_missing = TRUE,
+#   add_plot_histogram = TRUE,
+#   add_plot_density = FALSE,
+#   add_plot_qq = TRUE,
+#   add_plot_bar = TRUE,
+#   add_plot_correlation = TRUE,
+#   # add_plot_prcomp = TRUE,
+#   add_plot_boxplot = TRUE,
+#   add_plot_scatterplot = TRUE,
+#   introduce_args = list(),
+#   plot_intro_args = list(),
+#   plot_str_args = list(type = "diagonal", fontSize = 35, width = 1000, margin =
+#     list(left = 350, right = 250)),
+#   plot_missing_args = list(),
+#   plot_histogram_args = list(),
+#   plot_density_args = list(),
+#   plot_qq_args = list(sampled_rows = 1000L),
+#   plot_bar_args = list(),
+#   plot_correlation_args = list(cor_args = list(use = "pairwise.complete.obs")),
+#   plot_prcomp_args = list(),
+#   plot_boxplot_args = list(),
+#   plot_scatterplot_args = list(sampled_rows = 1000L),
+#   global_ggtheme = quote(theme_gray()),
+#   global_theme_config = list()
+# )
+# 
+# create_report(
+#   df,
+#   output_dir = "output/",
+#   y = "quality",
+#   report_title = "Wine Summary",
+#   config = report_config
+# )
+
+```
+
+```{r, echo=F}
+# Exploratory Data Analysis Plots
+plot_intro(df)
 plot_bar(df)
 plot_histogram(df)
 plot_correlation(df, type = "c")
 ```
-```{r}
-hist(df$residual_sugar, breaks = 100)
-# DataExplorer::create_report(df)
+
+From this we notice that free and total sulfur dioxide are highly correlated. Thus only one of the two was used in the analysis.
+
+```{r, include = F}
+data.summary(df)
 ```
 
+```{r, include=F}
+# Investigate unusual columns
+plot(df$quality, df$density)
+plot(df$quality, df$residual_sugar)
+plot(df$quality, df$sulphates)
+plot(df$quality, df$total_sulfur_dixoide)
+plot(df$quality, df$volatile_acidity)
+plot(df$quality, df$pH)
+
+```
+
+```{r}
+# Investigate outliers
+
+# outliers include
+# density, residual sugar, sulphates, total sulfur dioxide, volatile acidity
+
+# outlier at 1.04ish density and over 60 residual
+
+
+# df_outlier = df[df$residual_sugar > 60,]
+# df_outlier
+
+df_outlier = which(df$residual_sugar > 60)
+df_outlier2 = which(df$density > 1.03)
+
+```
+
+```{r}
+# Remove outliers and replot
+
+df = df[-df_outlier,]
+
+plot(df$quality, df$density)
+```
+
+```{r, include=F}
+plot(df$quality, df$density)
+plot(df$quality, df$residual_sugar)
+plot(df$quality, df$sulphates)
+plot(df$quality, df$total_sulfur_dixoide)
+plot(df$quality, df$volatile_acidity)
+```
 
 ## Model Building
-```{r}
+```{r, include=F}
 set.seed(3)
 trainIndex = sample(1:nrow(df), size = round(0.6*nrow(df)), replace=FALSE)
 df.train <- df[trainIndex, ]
@@ -111,44 +206,20 @@ df.valid <- df[-trainIndex, ]
 rm(trainIndex)
 ```
 
-```{r}
-df.reg.full <- lm(log(quality)~., data = df.train)
+```{r, include=F}
+lm(sqrt(quality) ~
+  volatile_acidity +
+  free_sulfur_dioxide +
+  alcohol +
+  color,
+  data = df.train) -> df.reg
 
-summary(df.reg.full)
-
-# lm(quality ~
-#   fixed_acidity +
-#   volatile_acidity +
-#   citric_acid +
-#   residual_sugar +
-#   chlorides +
-#   free_sulfur_dioxide +
-#   total_sulfur_dioxide +
-#   density +
-#   pH +
-#   sulphates +
-#   alcohol +
-#   color,
-#   data = df.train) -> df.reg.full2
-# 
-# 
-# summary(df.reg.full2)
-
+summary(df.reg)
 ```
 
-```{r}
-# plot(df.reg.full)
-
-plot(df.reg.full$fitted.values, df.reg.full$residuals, 
-     ylab = "Residuals", 
-     xlab = "Casual", 
-     main = "Residuals vs. Fitted Values")
-abline(0,0, col = "red")
-
-qqnorm(df.reg.full$residuals)
-qqline(df.reg.full$residuals, col = "red")
+```{r, include=F}
+plot(df.reg)
 ```
-
 
 
 # Conclusion
