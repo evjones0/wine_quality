@@ -1,7 +1,8 @@
 ---
 title: "Vinho Verde Wine Analysis"
 author: "Evan Jones"
-date: "10/2/2020"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+bibliography: refs.bib
 output: 
   html_document:
     code_folding: hide
@@ -28,22 +29,16 @@ source("external_functions/data_summary.R")
 
 # Overview
 
-[Explain background of wine process]
+The purpose of this analysis is to develop an explanatory model to predict the quality of "Vinho Verde" wine. "Vinho Verde" is a classification for wine that is produced from grapes only grown in the northwest regions of Portugal. Currently, Portugal has issues with illegal wine manufacturing. As a solution, they require all wine batches to be tasted for quality by a subjective wine expert. This expert gives a rating to a batch of wine which is then bottled and sold. This rating is essential to the wine selling process. Therefore, it's in a winery's best interest to as closely predict the rating of this wine as possible, based on measuring its physiochemical properties.
 
-[Where dataset comes from]
+This dataset comes from the University of California, Irvine (UCI) Machine Learning Dataset Library @CORTEZ2009547. It contains individual observations of physiochemical properties of red and white wines from different wineries in the region. This dataset additionally contains the subjective wine expert rating that the batch received.
 
-[What was accomplished]
-
-[What the model is capable of doing]
-
+As a result of this analysis, an explanatory model was created to estimate "Vinho Verde" wine quality. By using this model, technicians working at wineries in northwest Portugal will be able to input their daily measurements and receive an indication as to what the overall batch quality will look like once it is graded by subjective wine experts.
 
 # Data Description
-This dataset contains physicochemical and qualitative measures of red and white vinho verde wine from Portugal. The overall goal of this dataset is to predict wine quality in a 0 to 10 rating scale. Each quality observation is based on an expert review.
+This dataset contains physicochemical and qualitative measures of red and white "Vinho Verde" wine from Portugal. The overall goal of this dataset is to predict wine quality in a 0 to 10 rating scale. Each quality observation is based on an expert review.
 
-There are 13 total variables in the dataset.
-
-[More backstory on where the data is from. Some EU stuff]
-
+There are 13 total variables in the dataset. 
 
 Variable Name | Variable Type | Unit | Description
 - | - | - | -
@@ -63,23 +58,25 @@ Color | Factor (2 levels) | N/A | Whether the wine is white or red
 
 # Analysis
 
+## Environment Information
+```{r, environment, include=F}
+sessionInfo()
+```
+
+This analysis was completed in an R 4.0.2 environment on a 65-bit version of Windows 10. The following packages were used for analysis:
+1. tidyverse (1.3.0) - used for data wrangling and manipulation
+2. DataExplorer (0.8.1) - used for exploratory data analysis
+3. caret (6.0-86) - used for formula calculations (e.g. RMSE)
+
 ## Preprocessing
 
-[Something about how code can be expanded]
-
-The following steps were applied in order to prepare the data
+The following steps were applied in order to prepare the data. Please note that any of the underlying R code can be viewed by hitting the code button on the right in order to reproduce the analysis.
 
 1. The most recent copy of the dataset was read in from the UCI archives
 ```{r, data_read}
 # Read in datasets from UCI website
-
 df_white <- read.csv2("https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-white.csv")
 df_red <- read.csv2("https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-red.csv")
-
-# Local backup for dataset as of 8/23/20
-
-# df_white <- read.csv2("./datasets/winequality-white.csv")
-# df_red <- read.csv2("./datasets/winequality-red.csv")
 
 # Union datasets
 df_white$color <- "White"
@@ -87,6 +84,7 @@ df_red$color <- "Red"
 
 df <- union_all(df_white, df_red)
 
+# Remove old datasets
 rm(df_red, df_white)
 ```
 
@@ -106,7 +104,7 @@ df <- df %>%
 ```
 
 
-3. Variable types were converted
+3. Incorrect variable types were converted to the correct types that are listed in the data description section above
 ```{r, type_cast}
 # Identify column data types
 df.numeric = c("fixed_acidity","volatile_acidity", "citric_acid", "residual_sugar", "chlorides", "density", "pH", "sulphates", "alcohol", "quality")
@@ -127,33 +125,43 @@ rm(df.numeric, df.int, df.factor)
 df$color <- df$color %>% relevel(ref = "White")
 ```
 
-
 ## Exploratory Analysis
 
 **Amount of Missing values**
-
-There are no missing values
-
-
-```{r, exploratory_plots}
-# Exploratory Data Analysis Plots
-# plot_intro(df)
-plot_bar(df)
-plot_histogram(df)
-
+```{r, missingness, include=F}
+# Plot completeness of dataset
+plot_intro(df)
 ```
 
-**Multicollinearity Check**
+There are no missing values in the dataset. It is considered 100% complete.
+
+**Check for Multicollinearity**
 ```{r, correlation}
+# Plot correlation matrix of all numeric variables
 plot_correlation(df, type = "c")
 ```
 
-Free sulfur dioxide and total sulfur dioxide are highly correlated so only one of the two variables was used in the final model
+Looking at a correlation matrix of the quantitative variables in the model, there are two values that stand out as potentially concerning. Alcohol content has a moderately strong negative correlation with density. Additionally, free_sulfur_dioxide has a moderately strong positive correlation with total_sulfur_dioxide.
 
+**Value Range Plots**
 
-From this we notice that free and total sulfur dioxide are highly correlated. Thus only one of the two was used in the analysis.
+```{r, exploratory_barplot}
+# Plot barplot of all categorical variables
+plot_bar(df)
+```
+
+Color, the only categorical variable in the dataset has roughly three times as many white wine observations as it does red wine observations. This is an important note to keep in mind as a shortcoming of any model is that it may have a bias towards rating quality of white wines rather than red wines. 
+
+```{r, exploratory_histogram}
+# Plot histogram of all numeric variables
+plot_histogram(df)
+```
+
+Looking at the histograms of all numeric variables in the dataset, two variables that have particularly concerning right skewness are the density and residual sugar. This indicates that they may have particularly influential outliers.
 
 **Outlier Investigation**
+
+Looking further into the right skewness for density and residual sugar, wine quality was plotted against the observations for both of these variables
 
 ```{r, data_summary, include = F}
 data.summary(df)
@@ -174,6 +182,9 @@ plot(df$quality, df$residual_sugar,
      col=ifelse(df$residual_sugar > 60, "red", "black"))
 
 ```
+
+In both instances, there was one particularly influential observation (highlighted in red) that shared both the same unusual density and sugar content from the rest of the bottles.
+
 ```{r, outlier_removal, include=F}
 # Remove outliers from residual sugar and density
 
@@ -186,8 +197,10 @@ df = df[-df_outlier,]
 
 ```
 
+This outlier was removed from the dataset.
+
 ## Final Explanatory Model
-```{r, training_split}
+```{r, training_split, echo=F}
 # Set random seed and split data into training and validation sets
 set.seed(3)
 trainIndex = sample(1:nrow(df), size = round(0.6*nrow(df)), replace=FALSE)
@@ -198,7 +211,7 @@ rm(trainIndex)
 
 For the final model, training and validation datasets were constructed. 60% of the data was used for training, and 40% of the data was used for validation.
 
-```{r, model}
+```{r, model, echo=F}
 # Linear model
 lm(sqrt(quality) ~
   volatile_acidity +
@@ -207,21 +220,32 @@ lm(sqrt(quality) ~
   color,
   data = df.train) -> df.reg
 
+```
+
+```{r, include=F}
 summary(df.reg)
 ```
 
-[Some commentary about overall model size]
-
-The variables used in the final model are:
+Multi-linear regression was used to develop an explanatory model for both white and red "Vinho Verde" wines. The variables used in this final model are:
 
 * Volatile acidity
 * Free sulfur dioxide
-* Alcohol
+* Alcohol content
 * Color
 
-[Model formula]
+This resulted in the following regression equation:
 
-The $R^{2}_{adj}$ for the model was [some value]
+$$
+\widehat{Quality} = 
+\widehat\beta_{0} + \\
+\widehat\beta_{1}(Volatile\,Acidity) + \\
+\widehat\beta_{2}(Free\,Sulfur\,Dioxide) + \\
+\widehat\beta_{3}(Alcohol) + \\
+\widehat\beta_{4}(Color\,Red)
+$$
+
+We can explain `r round((summary(df.reg)$r.squared*100), digits=1)`% of variation in wine quality while using the volatile acidity level, free sulfur dioxide level, alcohol content, and if the wine is red as predictors in a linear model.
+
 
 ```{r, rmse}
 # Calculate predicted values for validation set and transform
@@ -236,6 +260,8 @@ rmse <- caret::RMSE(df.valid$quality_pred_adj, df.valid$quality)
 The model has an overall RMSE of `r round(rmse, digits=2)`
 
 ### Model Assumptions
+
+Linear model assumptions were tested in order to ensure the integrity of the final model.
 
 **Mean of Error Term**
 
@@ -255,7 +281,7 @@ plot(df.reg$fitted.values, df.reg$residuals,
 abline(0,0, col = "red")
 ```
 
-The variance of the probability distribution of the error looks [insert], so this assumptions is passed.
+The variance of the probability distribution of the error looks relatively scattered, so this assumptions is passed. Note that since quality has a finite number of values, distinct streaks appear for each value of quality in the dataset.
 
 **Normal Distribution of Error Term**
 
@@ -274,28 +300,83 @@ Additionally, we can assume that each of these observations are independent of e
 
 ### Predictive Power
 
-Since there are only 4 observations with a quality of 9, and no observations with a quality of 10, high predicted qualities should be approached with caution.
+Since there are only 4 observations with a quality of 9, and no observations with a quality of 10, high predicted qualities should be approached with caution. In order to illustrative the predictive power of the model, the quality of a white and red bottle were predicted.
 
 **Example Prediction 1 - White Wine**
 ```{r, predict1}
+data.frame(
+  volatile_acidity = 0.25,
+  free_sulfur_dioxide = 30,
+  alcohol = 8,
+  color = "Red"
+) -> prediction_frame
+
+df.reg %>% 
+  predict(prediction_frame, interval="prediction") %>% 
+  `^`(2) -> predict1
 
 ```
 
 The first example prediction was made on a bottle of wine with the following characteristics:
 
-[characteristics]
+* Volatile Acidity: $0.25g(acetic\;acid)/dm^3$
+* Free Sulfur Dioxide: $30mg/dm^3$
+* Alcohol Content: 8%
 
-**Example Prediction2 - Red Wine**
+One can predict with 95% confidence that a bottle with these characteristics will have a quality rating between `r round(predict1[2], digits=1)` and `r round(predict1[3], digits=1)`
+
+
+**Example Prediction 2 - Red Wine**
 ```{r, predict2}
+data.frame(
+  volatile_acidity = 0.3,
+  free_sulfur_dioxide = 35,
+  alcohol = 10.1,
+  color = "White"
+) -> prediction_frame
+
+df.reg %>% 
+  predict(prediction_frame, interval="prediction") %>% 
+  `^`(2) -> predict2
 
 ```
 
 The second example prediction was made on a bottle of wine with the following characteristics:
 
-[characteristics]
+* Volatile Acidity: $0.3g(acetic\;acid)/dm^3$
+* Free Sulfur Dioxide: $35mg/dm^3$
+* Alcohol Content: 10.1%
+
+One can predict with 95% confidence that a bottle with these characteristics will have a quality rating between `r round(predict2[2], digits=1)` and `r round(predict2[3], digits=1)`
+
 
 # Conclusion
 
-[Address business value proposition]
+## Value Proposition
 
-[Address how solution meets requirements of customer segment]
+This solution was developed to meet the needs of winery technicians who are actively involved in the wine production process. On a regular basis, they actively take measurements of each wine barrel to ensure the wine will be of an intended quality when it's produced. These technicians also intend to receive the "Vinho Verde" certification for that respective wine batch.
+
+Currently, the pain point in the process is the usage of excess resources making a wine batch that is of the wrong quality (i.e. too high or too low). The technicians are looking for a solution that assists with wine production and aligns with what an expert's subjective wine rating will most likely be.
+
+By having this wine at an intended quality, these technicians can maximize the likelihood of receiving a desirable subjective expert wine rating.
+
+## Solution
+
+This solution takes the form of a multi-linear regression equation. The technician (who has a background in chemical engineering) can input the measurements they already take on a daily basis into this equation and it will provide an estimate for the overall wine quality once it's bottled.
+
+The equation takes the form of:
+$$
+\widehat{Quality} = 1.747 - \\ 
+0.339(Volatile\,Acidity) + \\
+0.001(Free\,Sulfur\,Dioxide) + \\
+0.069(Alcohol) + \\
+0.062(Color\,Red)
+$$
+
+Please note the equation is wrapped on multiple lines to ensure it fits on all screen sizes.
+
+As a result of this equation, the winery is less likely to be caught off guard by a subjective expert wine rating (minimized quality deviation). Additionally, poor quality wine batches will be identified earlier in the production process to either remedy or abandon.
+
+Please note that this solution was was reduced in scope to no longer include a shiny web app or separate red/white wine models. This was due to time constraints, but we feel that this solution still adequately estimates wine quality. 
+
+# References
