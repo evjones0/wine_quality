@@ -1,11 +1,15 @@
 ---
 title: "Vinho Verde Wine Analysis"
 author: "Evan Jones"
-date: "9/23/2020"
+date: "10/2/2020"
 output: 
   html_document:
-    toc: true
     code_folding: hide
+    df_print: paged
+    number_sections: yes
+    theme: cerulean
+    toc: yes
+    toc_float: yes
 ---
 
 ```{r setup, include=FALSE}
@@ -24,10 +28,22 @@ source("external_functions/data_summary.R")
 
 # Overview
 
+[Explain background of wine process]
+
+[Where dataset comes from]
+
+[What was accomplished]
+
+[What the model is capable of doing]
+
+
 # Data Description
 This dataset contains physicochemical and qualitative measures of red and white vinho verde wine from Portugal. The overall goal of this dataset is to predict wine quality in a 0 to 10 rating scale. Each quality observation is based on an expert review.
 
 There are 13 total variables in the dataset.
+
+[More backstory on where the data is from. Some EU stuff]
+
 
 Variable Name | Variable Type | Unit | Description
 - | - | - | -
@@ -45,14 +61,22 @@ Alcohol | Continuous | % volume | % alcohol content of the wine bottle.
 Quality | Discrete | N/A | 0-10 score assigned to the bottle
 Color | Factor (2 levels) | N/A | Whether the wine is white or red
 
-# Preprocessing
-```{r, data_read, include = F}
+# Analysis
+
+## Preprocessing
+
+[Something about how code can be expanded]
+
+The following steps were applied in order to prepare the data
+
+1. The most recent copy of the dataset was read in from the UCI archives
+```{r, data_read}
 # Read in datasets from UCI website
 
 df_white <- read.csv2("https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-white.csv")
 df_red <- read.csv2("https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-red.csv")
 
-# Local backup fo dataset as of 8/23/20
+# Local backup for dataset as of 8/23/20
 
 # df_white <- read.csv2("./datasets/winequality-white.csv")
 # df_red <- read.csv2("./datasets/winequality-red.csv")
@@ -66,7 +90,9 @@ df <- union_all(df_white, df_red)
 rm(df_red, df_white)
 ```
 
-```{r, variable_rename, include=F}
+
+2. Variables were renamed to fit proper naming conventions for snake case
+```{r, variable_rename}
 # Rename columns to snake case
 df <- df %>% 
   rename(fixed_acidity = fixed.acidity,
@@ -79,7 +105,9 @@ df <- df %>%
 
 ```
 
-```{r, type_cast, include=F}
+
+3. Variable types were converted
+```{r, type_cast}
 # Identify column data types
 df.numeric = c("fixed_acidity","volatile_acidity", "citric_acid", "residual_sugar", "chlorides", "density", "pH", "sulphates", "alcohol", "quality")
 df.int = c("free_sulfur_dioxide", "total_sulfur_dioxide")
@@ -91,88 +119,65 @@ df[df.factor] <- lapply(df[df.factor], as.factor)
 
 rm(df.numeric, df.int, df.factor)
 
+```
+
+4. The wine color was releveled so that white wine would act as the base level
+```{r}
 # relevel color base as white (red wines are generally more premium)
-
 df$color <- df$color %>% relevel(ref = "White")
+```
 
-str(df)
+
+## Exploratory Analysis
+
+**Amount of Missing values**
+
+There are no missing values
+
+
+```{r, exploratory_plots}
+# Exploratory Data Analysis Plots
+# plot_intro(df)
+plot_bar(df)
+plot_histogram(df)
 
 ```
 
-# Analysis
+**Multicollinearity Check**
+```{r, correlation}
+plot_correlation(df, type = "c")
+```
 
 Free sulfur dioxide and total sulfur dioxide are highly correlated so only one of the two variables was used in the final model
 
 
-```{r, data_explorer, include=F}
-# Data Explorer Generation
-# DataExplorer::create_report(df)
-
-# report_config <- configure_report(
-#   add_introduce = TRUE,
-#   add_plot_intro = TRUE,
-#   # add_plot_str = TRUE,
-#   add_plot_missing = TRUE,
-#   add_plot_histogram = TRUE,
-#   add_plot_density = FALSE,
-#   add_plot_qq = TRUE,
-#   add_plot_bar = TRUE,
-#   add_plot_correlation = TRUE,
-#   # add_plot_prcomp = TRUE,
-#   add_plot_boxplot = TRUE,
-#   add_plot_scatterplot = TRUE,
-#   introduce_args = list(),
-#   plot_intro_args = list(),
-#   plot_str_args = list(type = "diagonal", fontSize = 35, width = 1000, margin =
-#     list(left = 350, right = 250)),
-#   plot_missing_args = list(),
-#   plot_histogram_args = list(),
-#   plot_density_args = list(),
-#   plot_qq_args = list(sampled_rows = 1000L),
-#   plot_bar_args = list(),
-#   plot_correlation_args = list(cor_args = list(use = "pairwise.complete.obs")),
-#   plot_prcomp_args = list(),
-#   plot_boxplot_args = list(),
-#   plot_scatterplot_args = list(sampled_rows = 1000L),
-#   global_ggtheme = quote(theme_gray()),
-#   global_theme_config = list()
-# )
-# 
-# create_report(
-#   df,
-#   output_dir = "output/",
-#   y = "quality",
-#   report_title = "Wine Summary",
-#   config = report_config
-# )
-
-```
-
-```{r, exploratory_plots, echo=F}
-# Exploratory Data Analysis Plots
-plot_intro(df)
-plot_bar(df)
-plot_histogram(df)
-plot_correlation(df, type = "c")
-```
-
 From this we notice that free and total sulfur dioxide are highly correlated. Thus only one of the two was used in the analysis.
+
+**Outlier Investigation**
 
 ```{r, data_summary, include = F}
 data.summary(df)
 ```
 
-```{r, outlier_plots}
+```{r, outlier_plots, figures-side, fig.show="hold", out.width="50%"}
 # Investigate unusual columns
-plot(df$quality, df$density)
-plot(df$quality, df$residual_sugar)
+plot(df$quality, df$density,
+     ylab = "Density", 
+     xlab = "Quality", 
+     main = "Quality vs. Density",
+     col=ifelse(df$density > 1.03, "red", "black"))
+
+plot(df$quality, df$residual_sugar,
+     ylab = "Residual Sugar", 
+     xlab = "Quality", 
+     main = "Quality vs. Residual Sugar",
+     col=ifelse(df$residual_sugar > 60, "red", "black"))
 
 ```
-
 ```{r, outlier_removal, include=F}
 # Remove outliers from residual sugar and density
 
-df_outlier <- which(df$residual_sugar > 60) 
+df_outlier <- which(df$residual_sugar > 60)
 
 df_outlier %>% 
   union(which(df$density > 1.03)) -> df_outlier
@@ -182,7 +187,8 @@ df = df[-df_outlier,]
 ```
 
 ## Final Explanatory Model
-```{r, training_split, include=F}
+```{r, training_split}
+# Set random seed and split data into training and validation sets
 set.seed(3)
 trainIndex = sample(1:nrow(df), size = round(0.6*nrow(df)), replace=FALSE)
 df.train <- df[trainIndex, ]
@@ -190,7 +196,9 @@ df.valid <- df[-trainIndex, ]
 rm(trainIndex)
 ```
 
-```{r, model, include=F}
+For the final model, training and validation datasets were constructed. 60% of the data was used for training, and 40% of the data was used for validation.
+
+```{r, model}
 # Linear model
 lm(sqrt(quality) ~
   volatile_acidity +
@@ -202,13 +210,20 @@ lm(sqrt(quality) ~
 summary(df.reg)
 ```
 
-The variables used in the final model are:
-- Volatile aciditity
-- Free sulfur dioxide
-- Alcohol
-- Color
+[Some commentary about overall model size]
 
-```{r, rmse, include=F}
+The variables used in the final model are:
+
+* Volatile acidity
+* Free sulfur dioxide
+* Alcohol
+* Color
+
+[Model formula]
+
+The $R^{2}_{adj}$ for the model was [some value]
+
+```{r, rmse}
 # Calculate predicted values for validation set and transform
 df.valid$quality_pred <- predict(df.reg, newdata=df.valid)
 df.valid <- df.valid %>% 
@@ -232,7 +247,7 @@ The mean of the probability distribution of the error is $\approx 0$, Therefore 
 
 **Variance of Error Term**
 
-```{r, echo = FALSE}
+```{r}
 plot(df.reg$fitted.values, df.reg$residuals, 
      ylab = "Residuals", 
      xlab = "Fitted Values", 
@@ -244,7 +259,7 @@ The variance of the probability distribution of the error looks [insert], so thi
 
 **Normal Distribution of Error Term**
 
-```{r, echo = FALSE}
+```{r, qqplot}
 qqnorm(df.reg$residuals)
 qqline(df.reg$residuals, col = "red")
 ```
@@ -261,5 +276,26 @@ Additionally, we can assume that each of these observations are independent of e
 
 Since there are only 4 observations with a quality of 9, and no observations with a quality of 10, high predicted qualities should be approached with caution.
 
+**Example Prediction 1 - White Wine**
+```{r, predict1}
+
+```
+
+The first example prediction was made on a bottle of wine with the following characteristics:
+
+[characteristics]
+
+**Example Prediction2 - Red Wine**
+```{r, predict2}
+
+```
+
+The second example prediction was made on a bottle of wine with the following characteristics:
+
+[characteristics]
 
 # Conclusion
+
+[Address business value proposition]
+
+[Address how solution meets requirements of customer segment]
